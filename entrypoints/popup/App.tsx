@@ -1,34 +1,40 @@
-import { useState } from 'react';
-import reactLogo from '@/assets/react.svg';
-import wxtLogo from '/wxt.svg';
+import { useState, useEffect } from 'react';
+import { getCurrentTabUrl, isInstagramUrl } from './services';
 import './App.css';
 
 function App() {
-  const [count, setCount] = useState(0);
+  const [currentUrl, setCurrentUrl] = useState<string | null>(null);
+  const [isInstagram, setIsInstagram] = useState<boolean>(false);
+
+  useEffect(() => {
+    const checkTab = async () => {
+      const url = await getCurrentTabUrl();
+      const isIg = isInstagramUrl(url);
+
+      setCurrentUrl(url);
+      setIsInstagram(isIg);
+
+      console.log('[IG-Imbalance] URL:', url, '| Is Instagram:', isIg);
+    };
+
+    checkTab();
+
+    const handleUpdated = (_tabId: number, changeInfo: { url?: string }) => {
+      if (changeInfo.url) {
+        checkTab();
+      }
+    };
+
+    browser.tabs.onUpdated.addListener(handleUpdated);
+    return () => {
+      browser.tabs.onUpdated.removeListener(handleUpdated);
+    };
+  }, []);
 
   return (
-    <>
-      <div>
-        <a href="https://wxt.dev" target="_blank">
-          <img src={wxtLogo} className="logo" alt="WXT logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>WXT + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the WXT and React logos to learn more
-      </p>
-    </>
+    <div className="container">
+      <h1>IG-IMBALANCE</h1>
+    </div>
   );
 }
 

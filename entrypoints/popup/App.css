@@ -1,42 +1,102 @@
 #root {
-  max-width: 1280px;
+  width: 320px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 16px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #54bc4ae0);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.header h2 {
+  margin: 0;
+  font-size: 1.25rem;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.subtitle {
+  font-size: 0.75rem;
+  color: #888;
 }
 
 .card {
-  padding: 2em;
+  border-radius: 10px;
+  padding: 12px;
+  background-color: #2a2a2a;
 }
 
-.read-the-docs {
-  color: #888;
+.status-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.status-box.success .status-title {
+  color: #4ade80;
+}
+
+.status-box.warning .status-title {
+  color: #fbbf24;
+}
+
+.url-text {
+  font-size: 0.75rem;
+  color: #aaa;
+  word-break: break-all;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: #ddd;
+  margin: 0;
+  line-height: 1.4;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+.primary-btn {
+  background: linear-gradient(45deg, #f09433, #e6683c, #dc2743, #cc2366, #bc1888);
+  color: white;
+}
+
+.open-ig-btn {
+  background: #3b82f6;
+  color: white;
+}
+
+.refresh-btn {
+  background: #374151;
+  color: #e5e7eb;
+}
+
+.refresh-btn:hover {
+  background: #4b5563;
 }

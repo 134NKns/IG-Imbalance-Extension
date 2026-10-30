@@ -1,6 +1,6 @@
 export default defineContentScript({
-  matches: ['*://*.google.com/*'],
+  matches: ['*://*.instagram.com/*'],
   main() {
-    console.log('Hello content.');
+    console.log('IG Imbalance content script loaded.');
   },
 });
