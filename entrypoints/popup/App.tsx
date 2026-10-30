@@ -1,39 +1,87 @@
 import { useState, useEffect } from 'react';
-import { getCurrentTabUrl, isInstagramUrl } from './services';
+import {
+  getCurrentTabUrl,
+  isInstagramUrl,
+  getDsUserId,
+  getUsernameFromUrl,
+  getUserInfo,
+} from './services';
 import './App.css';
 
 function App() {
   const [currentUrl, setCurrentUrl] = useState<string | null>(null);
   const [isInstagram, setIsInstagram] = useState<boolean>(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>('idle');
+  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
-    const checkTab = async () => {
-      const url = await getCurrentTabUrl();
-      const isIg = isInstagramUrl(url);
+    let isActive = true;
 
-      setCurrentUrl(url);
-      setIsInstagram(isIg);
+    const run = async () => {
+      try {
+        setStatus('checking tab...');
+        const url = await getCurrentTabUrl();
+        const isIg = isInstagramUrl(url);
+        const currentUserId = await getDsUserId();
 
-      console.log('[IG-Imbalance] URL:', url, '| Is Instagram:', isIg);
-    };
+        if (!isActive) return;
 
-    checkTab();
+        setCurrentUrl(url);
+        setIsInstagram(isIg);
+        setUserId(currentUserId);
 
-    const handleUpdated = (_tabId: number, changeInfo: { url?: string }) => {
-      if (changeInfo.url) {
-        checkTab();
+        if (!isIg) {
+          setStatus('not on instagram');
+          return;
+        }
+
+        if (!currentUserId) {
+          setStatus('no user id found');
+          return;
+        }
+
+        const usernameFromUrl = getUsernameFromUrl(url);
+
+        setStatus('fetching user profile...');
+        const res = await getUserInfo(usernameFromUrl || undefined);
+        if (!isActive) return;
+
+        if (res.success && res.user) {
+          setProfile(res.user);
+          setStatus('ready');
+        } else {
+          setStatus(
+            `failed: status=${res.status ?? 'unknown'} error=${res.error || res.body || ''}`
+          );
+        }
+      } catch (err) {
+        if (!isActive) {
+          setStatus(`error: ${String(err)}`);
+        }
       }
     };
 
-    browser.tabs.onUpdated.addListener(handleUpdated);
+    run();
+
     return () => {
-      browser.tabs.onUpdated.removeListener(handleUpdated);
+      isActive = false;
     };
   }, []);
 
   return (
     <div className="container">
-      <h1>IG-IMBALANCE</h1>
+      <div>URL: {currentUrl || 'none'}</div>
+      <div>Is IG: {String(isInstagram)}</div>
+      <div>User ID: {userId || 'none'}</div>
+      <div>Status: {status}</div>
+      {profile && (
+        <div>
+          <div>Username: {profile.username}</div>
+          <div>Followers: {profile.followerCount}</div>
+          <div>Following: {profile.followingCount}</div>
+        </div>
+      )}
     </div>
   );
 }

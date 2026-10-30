@@ -6,7 +6,8 @@ export default defineConfig({
   manifest: {
     name: "IG Imbalance",
     description: "Instagram Followers & Following Imbalance",
-    permissions: ["activeTab", "tabs"],
+    permissions: ["activeTab", "tabs", "cookies"],
+    host_permissions: ["*://*.instagram.com/*"],
   },
   webExt: {
     disabled: true,
