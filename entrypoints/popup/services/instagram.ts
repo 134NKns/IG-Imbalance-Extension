@@ -7,6 +7,19 @@ export interface TestFollowingResult {
   body?: string;
 }
 
+export interface UserProfileData {
+  userId: string;
+  username: string;
+  fullName: string;
+}
+
+export interface FetchProfileResult {
+  success: boolean;
+  data?: UserProfileData;
+  error?: string;
+  status?: number;
+}
+
 export async function getCurrentTabUrl(): Promise<string | null> {
   try {
     const tabs = await browser.tabs.query({
@@ -62,6 +75,155 @@ export async function getDsUserId(): Promise<string | null> {
   } catch (error) {
     console.error("Error getting ds_user_id cookie:", error);
     return null;
+  }
+}
+
+export async function fetchUserProfile(
+  userId: string
+): Promise<FetchProfileResult> {
+  try {
+    const tabs = await browser.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    const tabId = tabs[0]?.id;
+    if (!tabId) {
+      return { success: false, error: "No active tab found" };
+    }
+
+    try {
+      const response = await browser.tabs.sendMessage(tabId, {
+        type: "FETCH_USER_PROFILE",
+        userId,
+      });
+      if (response?.success) return response;
+    } catch {
+      // Content script message failed; fallback to scripting API
+    }
+
+    const browserObj = typeof browser !== "undefined" ? (browser as any) : null;
+    const chromeObj =
+      typeof globalThis !== "undefined" ? (globalThis as any).chrome : null;
+    const scriptingApi = browserObj?.scripting || chromeObj?.scripting;
+
+    if (!scriptingApi) {
+      return {
+        success: false,
+        error: "Scripting API not available",
+      };
+    }
+
+    const results = await scriptingApi.executeScript({
+      target: { tabId },
+      func: async (uid: string) => {
+        function getCookie(name: string): string | null {
+          const match = document.cookie.match(
+            new RegExp("(^|;\\s*)(" + name + ")=([^;]*)")
+          );
+          return match && match[3] ? decodeURIComponent(match[3]) : null;
+        }
+
+        const csrfToken = getCookie("csrftoken") || "";
+        const headers: Record<string, string> = {
+          "x-ig-app-id": "936619743392459",
+          "x-csrftoken": csrfToken,
+          "x-requested-with": "XMLHttpRequest",
+          accept: "*/*",
+          referer: "https://www.instagram.com/",
+        };
+
+        // Try /api/v1/users/{userId}/info/
+        try {
+          const res = await fetch(
+            `https://www.instagram.com/api/v1/users/${uid}/info/`,
+            {
+              method: "GET",
+              headers,
+              credentials: "include",
+            }
+          );
+          if (res.ok) {
+            const json = await res.json();
+            const user = json?.user;
+            if (user?.username) {
+              return {
+                success: true,
+                data: {
+                  userId: uid,
+                  username: user.username,
+                  fullName: user.full_name ?? "",
+                },
+              };
+            }
+          }
+        } catch {}
+
+        // Fallback: /api/v1/accounts/current_user/?edit=true
+        try {
+          const res = await fetch(
+            "https://www.instagram.com/api/v1/accounts/current_user/?edit=true",
+            {
+              method: "GET",
+              headers,
+              credentials: "include",
+            }
+          );
+          if (res.ok) {
+            const json = await res.json();
+            const user = json?.user;
+            if (user?.username) {
+              return {
+                success: true,
+                data: {
+                  userId: uid,
+                  username: user.username,
+                  fullName: user.full_name ?? "",
+                },
+              };
+            }
+          }
+        } catch {}
+
+        // Fallback: DOM profile link
+        const profileLink = Array.from(
+          document.querySelectorAll('a[href^="/"]')
+        ).find((a) => {
+          const href = a.getAttribute("href") || "";
+          const match = href.match(/^\/([a-zA-Z0-9._]+)\/?$/);
+          return match && a.querySelector("img");
+        });
+
+        if (profileLink) {
+          const href = profileLink.getAttribute("href") || "";
+          const match = href.match(/^\/([a-zA-Z0-9._]+)\/?$/);
+          if (match && match[1]) {
+            return {
+              success: true,
+              data: {
+                userId: uid,
+                username: match[1],
+                fullName: "",
+              },
+            };
+          }
+        }
+
+        return {
+          success: false,
+          error: "Could not fetch user profile",
+        };
+      },
+      args: [userId],
+    });
+
+    return (
+      results[0]?.result ?? {
+        success: false,
+        error: "Empty execution result",
+      }
+    );
+  } catch (error) {
+    return { success: false, error: String(error) };
   }
 }
 
