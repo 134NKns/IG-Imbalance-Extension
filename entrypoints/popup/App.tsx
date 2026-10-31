@@ -3,8 +3,7 @@ import {
   getCurrentTabUrl,
   isInstagramUrl,
   getDsUserId,
-  getUsernameFromUrl,
-  getUserInfo,
+  testFetchFollowing,
 } from './services';
 import './App.css';
 
@@ -13,7 +12,9 @@ function App() {
   const [isInstagram, setIsInstagram] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('idle');
-  const [profile, setProfile] = useState<any>(null);
+  const [sampleUsers, setSampleUsers] = useState<
+    Array<{ username: string; fullName: string }>
+  >([]);
 
   useEffect(() => {
     let isActive = true;
@@ -41,24 +42,21 @@ function App() {
           return;
         }
 
-        const usernameFromUrl = getUsernameFromUrl(url);
-
-        setStatus('fetching user profile...');
-        const res = await getUserInfo(usernameFromUrl || undefined);
+        setStatus('testing API: friendships/following...');
+        const res = await testFetchFollowing(currentUserId);
         if (!isActive) return;
 
-        if (res.success && res.user) {
-          setProfile(res.user);
-          setStatus('ready');
+        if (res.success && res.users) {
+          setStatus(`success: status=${res.status} returned=${res.totalReturned}`);
+          setSampleUsers(res.users);
         } else {
           setStatus(
             `failed: status=${res.status ?? 'unknown'} error=${res.error || res.body || ''}`
           );
         }
       } catch (err) {
-        if (!isActive) {
-          setStatus(`error: ${String(err)}`);
-        }
+        if (!isActive) return;
+        setStatus(`error: ${String(err)}`);
       }
     };
 
@@ -75,11 +73,14 @@ function App() {
       <div>Is IG: {String(isInstagram)}</div>
       <div>User ID: {userId || 'none'}</div>
       <div>Status: {status}</div>
-      {profile && (
+      {sampleUsers.length > 0 && (
         <div>
-          <div>Username: {profile.username}</div>
-          <div>Followers: {profile.followerCount}</div>
-          <div>Following: {profile.followingCount}</div>
+          <div>Sample Following ({sampleUsers.length}):</div>
+          {sampleUsers.slice(0, 5).map((u, i) => (
+            <div key={i}>
+              - @{u.username} ({u.fullName})
+            </div>
+          ))}
         </div>
       )}
     </div>

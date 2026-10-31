@@ -5,65 +5,18 @@ function getCookie(name: string): string | null {
   return match && match[3] ? decodeURIComponent(match[3]) : null;
 }
 
-function getUsernameFromDOM(): string | null {
-  const reserved = [
-    "/",
-    "/explore/",
-    "/reels/",
-    "/direct/",
-    "/stories/",
-    "/accounts/",
-    "/your_activity/",
-    "/settings/",
-  ];
-
-  // Try checking sidebar profile link with avatar image
-  const links = Array.from(document.querySelectorAll('a[href^="/"]'));
-  for (const link of links) {
-    const href = link.getAttribute("href") || "";
-    if (
-      reserved.includes(href) ||
-      href.startsWith("/direct/") ||
-      href.startsWith("/stories/") ||
-      href.startsWith("/p/") ||
-      href.startsWith("/reel/")
-    ) {
-      continue;
-    }
-
-    const match = href.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-    if (match && match[1]) {
-      const hasImg = link.querySelector("img");
-      if (hasImg) {
-        return match[1];
-      }
-    }
-  }
-
-  // Fallback: check current pathname
-  const pathMatch = window.location.pathname.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-  if (pathMatch && pathMatch[1]) {
-    const candidate = pathMatch[1].toLowerCase();
-    if (!reserved.includes("/" + candidate + "/")) {
-      return pathMatch[1];
-    }
-  }
-
-  return null;
-}
-
 export default defineContentScript({
   matches: ["*://*.instagram.com/*"],
   main() {
     console.log("[Content Script] IG Imbalance loaded.");
 
     browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === "GET_USER_INFO") {
-        const detectedUsername = message.username || getUsernameFromDOM();
-        if (!detectedUsername) {
+      if (message?.type === "TEST_FETCH_FOLLOWING") {
+        const userId = message.userId || getCookie("ds_user_id");
+        if (!userId) {
           sendResponse({
             success: false,
-            error: "Could not detect username from page",
+            error: "No ds_user_id found",
           });
           return true;
         }
@@ -71,55 +24,54 @@ export default defineContentScript({
         const csrfToken = getCookie("csrftoken") || "";
         const headers: Record<string, string> = {
           "x-ig-app-id": "936619743392459",
-          "x-asbd-id": "129477",
+          "x-csrftoken": csrfToken,
           "x-requested-with": "XMLHttpRequest",
+          accept: "*/*",
+          referer: "https://www.instagram.com/",
         };
 
-        if (csrfToken) {
-          headers["x-csrftoken"] = csrfToken;
-        }
+        const url = `https://www.instagram.com/api/v1/friendships/${userId}/following/?count=10`;
 
-        fetch(
-          `https://www.instagram.com/api/v1/users/web_profile_info/?username=${detectedUsername}`,
-          {
-            method: "GET",
-            headers,
-            credentials: "include",
-          }
-        )
+        fetch(url, {
+          method: "GET",
+          headers,
+          credentials: "include",
+        })
           .then(async (res) => {
             console.log(
-              "[Content Script] web_profile_info status:",
+              "[Content Script] friendships/following status:",
               res.status,
               res.statusText
             );
 
-            if (!res.ok) {
-              const bodyText = await res.text();
+            const text = await res.text();
+            let json: any = null;
+            try {
+              json = JSON.parse(text);
+            } catch {
+              // Non-JSON (e.g. HTML challenge page)
+            }
+
+            if (!res.ok || !json) {
               sendResponse({
                 success: false,
                 status: res.status,
-                body: bodyText,
+                body: text.slice(0, 300),
               });
               return;
             }
 
-            const json = await res.json();
-            const rawUser = json?.data?.user;
-            if (!rawUser) {
-              sendResponse({ success: false, error: "Empty user in response" });
-              return;
-            }
+            const users = (json.users ?? []).map((u: any) => ({
+              pk: String(u.pk ?? u.id),
+              username: u.username,
+              fullName: u.full_name ?? "",
+            }));
 
             sendResponse({
               success: true,
-              user: {
-                id: rawUser.id,
-                username: rawUser.username,
-                fullName: rawUser.full_name,
-                followerCount: rawUser.edge_followed_by?.count ?? 0,
-                followingCount: rawUser.edge_follow?.count ?? 0,
-              },
+              status: res.status,
+              totalReturned: users.length,
+              users,
             });
           })
           .catch((err) => {

@@ -1,7 +1,8 @@
-export interface UserInfoResult {
+export interface TestFollowingResult {
   success: boolean;
-  user?: any;
   status?: number;
+  totalReturned?: number;
+  users?: Array<{ pk: string; username: string; fullName: string }>;
   error?: string;
   body?: string;
 }
@@ -41,32 +42,6 @@ export function isInstagramUrl(url: string | null | undefined): boolean {
   }
 }
 
-export function getUsernameFromUrl(url: string | null | undefined): string | null {
-  if (!url || !isInstagramUrl(url)) return null;
-  try {
-    const parsed = new URL(url);
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    const reserved = [
-      "explore",
-      "reels",
-      "stories",
-      "direct",
-      "accounts",
-      "your_activity",
-      "settings",
-      "p",
-      "reel",
-    ];
-    const firstSegment = segments[0];
-    if (firstSegment && !reserved.includes(firstSegment.toLowerCase())) {
-      return firstSegment;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
 export async function getDsUserId(): Promise<string | null> {
   try {
     const browserObj = typeof browser !== "undefined" ? (browser as any) : null;
@@ -90,7 +65,9 @@ export async function getDsUserId(): Promise<string | null> {
   }
 }
 
-export async function getUserInfo(username?: string): Promise<UserInfoResult> {
+export async function testFetchFollowing(
+  userId: string
+): Promise<TestFollowingResult> {
   try {
     const tabs = await browser.tabs.query({
       active: true,
@@ -102,20 +79,11 @@ export async function getUserInfo(username?: string): Promise<UserInfoResult> {
     }
 
     const response = await browser.tabs.sendMessage(tabId, {
-      type: "GET_USER_INFO",
-      username,
+      type: "TEST_FETCH_FOLLOWING",
+      userId,
     });
 
-    if (!response?.success) {
-      return {
-        success: false,
-        status: response?.status,
-        error: response?.error,
-        body: response?.body,
-      };
-    }
-
-    return { success: true, user: response.user };
+    return response;
   } catch (error) {
     return { success: false, error: String(error) };
   }
