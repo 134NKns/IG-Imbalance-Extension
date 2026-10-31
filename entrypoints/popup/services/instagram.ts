@@ -78,12 +78,95 @@ export async function testFetchFollowing(
       return { success: false, error: "No active tab found" };
     }
 
-    const response = await browser.tabs.sendMessage(tabId, {
-      type: "TEST_FETCH_FOLLOWING",
-      userId,
+    try {
+      const response = await browser.tabs.sendMessage(tabId, {
+        type: "TEST_FETCH_FOLLOWING",
+        userId,
+      });
+      if (response) return response;
+    } catch {
+      // Content script message failed; fallback to direct tab injection via scripting API
+    }
+
+    const browserObj = typeof browser !== "undefined" ? (browser as any) : null;
+    const chromeObj =
+      typeof globalThis !== "undefined" ? (globalThis as any).chrome : null;
+    const scriptingApi = browserObj?.scripting || chromeObj?.scripting;
+
+    if (!scriptingApi) {
+      return {
+        success: false,
+        error: "Could not establish connection. Please reload Instagram tab.",
+      };
+    }
+
+    const results = await scriptingApi.executeScript({
+      target: { tabId },
+      func: async (uid: string) => {
+        function getCookie(name: string): string | null {
+          const match = document.cookie.match(
+            new RegExp("(^|;\\s*)(" + name + ")=([^;]*)")
+          );
+          return match && match[3] ? decodeURIComponent(match[3]) : null;
+        }
+
+        const csrfToken = getCookie("csrftoken") || "";
+        const headers: Record<string, string> = {
+          "x-ig-app-id": "936619743392459",
+          "x-csrftoken": csrfToken,
+          "x-requested-with": "XMLHttpRequest",
+          accept: "*/*",
+          referer: "https://www.instagram.com/",
+        };
+
+        const url = `https://www.instagram.com/api/v1/friendships/${uid}/following/?count=10`;
+
+        try {
+          const res = await fetch(url, {
+            method: "GET",
+            headers,
+            credentials: "include",
+          });
+
+          const text = await res.text();
+          let json: any = null;
+          try {
+            json = JSON.parse(text);
+          } catch {}
+
+          if (!res.ok || !json) {
+            return {
+              success: false,
+              status: res.status,
+              body: text.slice(0, 300),
+            };
+          }
+
+          const users = (json.users ?? []).map((u: any) => ({
+            pk: String(u.pk ?? u.id),
+            username: u.username,
+            fullName: u.full_name ?? "",
+          }));
+
+          return {
+            success: true,
+            status: res.status,
+            totalReturned: users.length,
+            users,
+          };
+        } catch (e: any) {
+          return { success: false, error: String(e) };
+        }
+      },
+      args: [userId],
     });
 
-    return response;
+    return (
+      results[0]?.result ?? {
+        success: false,
+        error: "Empty execution result",
+      }
+    );
   } catch (error) {
     return { success: false, error: String(error) };
   }
