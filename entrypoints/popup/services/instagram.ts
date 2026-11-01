@@ -11,6 +11,9 @@ export interface UserProfileData {
   userId: string;
   username: string;
   fullName: string;
+  profilePicUrl?: string;
+  followerCount?: number;
+  followingCount?: number;
 }
 
 export interface FetchProfileResult {
@@ -81,6 +84,18 @@ export async function getDsUserId(): Promise<string | null> {
 export async function fetchUserProfile(
   userId: string
 ): Promise<FetchProfileResult> {
+  const cacheKey = `ig_profile_${userId}`;
+  try {
+    const cached = (await browser.storage.local.get(cacheKey)) as Record<
+      string,
+      UserProfileData | undefined
+    >;
+    const profile = cached?.[cacheKey];
+    if (profile && profile.profilePicUrl) {
+      return { success: true, data: profile };
+    }
+  } catch {}
+
   try {
     const tabs = await browser.tabs.query({
       active: true,
@@ -96,7 +111,12 @@ export async function fetchUserProfile(
         type: "FETCH_USER_PROFILE",
         userId,
       });
-      if (response?.success) return response;
+      if (response?.success && response.data) {
+        if (response.data.profilePicUrl) {
+          browser.storage.local.set({ [cacheKey]: response.data }).catch(() => {});
+        }
+        return response;
+      }
     } catch {
       // Content script message failed; fallback to scripting API
     }
@@ -116,112 +136,77 @@ export async function fetchUserProfile(
     const results = await scriptingApi.executeScript({
       target: { tabId },
       func: async (uid: string) => {
-        function getCookie(name: string): string | null {
-          const match = document.cookie.match(
-            new RegExp("(^|;\\s*)(" + name + ")=([^;]*)")
-          );
-          return match && match[3] ? decodeURIComponent(match[3]) : null;
-        }
-
-        const csrfToken = getCookie("csrftoken") || "";
-        const headers: Record<string, string> = {
-          "x-ig-app-id": "936619743392459",
-          "x-csrftoken": csrfToken,
-          "x-requested-with": "XMLHttpRequest",
-          accept: "*/*",
-          referer: "https://www.instagram.com/",
-        };
-
-        // Try /api/v1/users/{userId}/info/
-        try {
-          const res = await fetch(
-            `https://www.instagram.com/api/v1/users/${uid}/info/`,
-            {
-              method: "GET",
-              headers,
-              credentials: "include",
-            }
-          );
-          if (res.ok) {
-            const json = await res.json();
-            const user = json?.user;
-            if (user?.username) {
-              return {
-                success: true,
-                data: {
-                  userId: uid,
-                  username: user.username,
-                  fullName: user.full_name ?? "",
-                },
-              };
-            }
-          }
-        } catch {}
-
-        // Fallback: /api/v1/accounts/current_user/?edit=true
-        try {
-          const res = await fetch(
-            "https://www.instagram.com/api/v1/accounts/current_user/?edit=true",
-            {
-              method: "GET",
-              headers,
-              credentials: "include",
-            }
-          );
-          if (res.ok) {
-            const json = await res.json();
-            const user = json?.user;
-            if (user?.username) {
-              return {
-                success: true,
-                data: {
-                  userId: uid,
-                  username: user.username,
-                  fullName: user.full_name ?? "",
-                },
-              };
-            }
-          }
-        } catch {}
-
-        // Fallback: DOM profile link
+        // Extract from page DOM (100% safe, 0 network calls)
         const profileLink = Array.from(
           document.querySelectorAll('a[href^="/"]')
         ).find((a) => {
           const href = a.getAttribute("href") || "";
           const match = href.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-          return match && a.querySelector("img");
+          const nonUser = [
+            "explore",
+            "reels",
+            "direct",
+            "stories",
+            "your_activity",
+            "settings",
+            "accounts",
+          ];
+          return (
+            Boolean(match && match[1] && !nonUser.includes(match[1])) &&
+            Boolean(a.querySelector("img"))
+          );
         });
 
+        let domUsername = "";
+        let domPicUrl = "";
         if (profileLink) {
           const href = profileLink.getAttribute("href") || "";
           const match = href.match(/^\/([a-zA-Z0-9._]+)\/?$/);
-          if (match && match[1]) {
-            return {
-              success: true,
-              data: {
-                userId: uid,
-                username: match[1],
-                fullName: "",
-              },
-            };
+          if (match && match[1]) domUsername = match[1];
+          const img = profileLink.querySelector("img");
+          domPicUrl = img?.currentSrc || img?.src || "";
+        }
+
+        // Also check header image if on own profile
+        if (!domPicUrl) {
+          const headerImg = document.querySelector<HTMLImageElement>("header img");
+          if (headerImg) {
+            domPicUrl = headerImg.currentSrc || headerImg.src || "";
           }
+        }
+
+        if (domUsername || domPicUrl) {
+          return {
+            success: true,
+            data: {
+              userId: uid,
+              username: domUsername || "you",
+              fullName: "",
+              profilePicUrl: domPicUrl,
+            },
+          };
         }
 
         return {
           success: false,
-          error: "Could not fetch user profile",
+          error: "Could not find profile in page DOM",
         };
       },
       args: [userId],
     });
 
-    return (
-      results[0]?.result ?? {
-        success: false,
-        error: "Empty execution result",
+    const res = results[0]?.result;
+    if (res?.success && res.data) {
+      if (res.data.profilePicUrl) {
+        browser.storage.local.set({ [cacheKey]: res.data }).catch(() => {});
       }
-    );
+      return res;
+    }
+
+    return {
+      success: false,
+      error: "Empty execution result",
+    };
   } catch (error) {
     return { success: false, error: String(error) };
   }

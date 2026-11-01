@@ -4,35 +4,43 @@ import type { UserProfileData } from "../../services";
 
 interface ProfileProps {
   userId: string | null;
+  onProfileLoaded?: (profile: UserProfileData) => void;
+  actions?: React.ReactNode;
 }
 
-export function Profile({ userId }: ProfileProps) {
+export function Profile({ userId, onProfileLoaded, actions }: ProfileProps) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
-  const [status, setStatus] = useState<string>("idle");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [avatarError, setAvatarError] = useState<boolean>(false);
 
   useEffect(() => {
     let isActive = true;
 
     if (!userId) {
-      setStatus("no user id");
+      setProfile(null);
       return;
     }
 
     const load = async () => {
       try {
-        setStatus("loading profile...");
+        setLoading(true);
+        setError(null);
+        setAvatarError(false);
         const res = await fetchUserProfile(userId);
         if (!isActive) return;
 
         if (res.success && res.data) {
           setProfile(res.data);
-          setStatus("ready");
+          onProfileLoaded?.(res.data);
         } else {
-          setStatus(`failed: ${res.error || "unknown"}`);
+          setError(res.error || "Failed to load profile");
         }
       } catch (err) {
         if (!isActive) return;
-        setStatus(`error: ${String(err)}`);
+        setError(String(err));
+      } finally {
+        if (isActive) setLoading(false);
       }
     };
 
@@ -43,13 +51,49 @@ export function Profile({ userId }: ProfileProps) {
     };
   }, [userId]);
 
+  if (!userId) return null;
+
   return (
     <div className="profile-container">
-      <div>Profile Status: {status}</div>
+      {loading && !profile && (
+        <div className="profile-status">Loading profile...</div>
+      )}
+      {error && !profile && <div className="profile-error">{error}</div>}
       {profile && (
-        <div className="profile-info">
-          <div>Username: @{profile.username}</div>
-          <div>Name: {profile.fullName || "-"}</div>
+        <div className="profile-card">
+          {profile.profilePicUrl && !avatarError ? (
+            <img
+              src={profile.profilePicUrl}
+              alt={profile.username}
+              className="profile-avatar"
+              onError={() => setAvatarError(true)}
+            />
+          ) : (
+            <div className="profile-avatar placeholder">
+              {profile.username[0]?.toUpperCase()}
+            </div>
+          )}
+          <div className="profile-info">
+            <div className="profile-username-row">
+              <span className="profile-username">@{profile.username}</span>
+            </div>
+            {profile.fullName && (
+              <div className="profile-fullname">{profile.fullName}</div>
+            )}
+            <div className="profile-counts">
+              {profile.followingCount !== undefined && (
+                <span>
+                  <strong>{profile.followingCount}</strong> following
+                </span>
+              )}
+              {profile.followerCount !== undefined && (
+                <span>
+                  <strong>{profile.followerCount}</strong> followers
+                </span>
+              )}
+            </div>
+          </div>
+          {actions && <div className="profile-actions">{actions}</div>}
         </div>
       )}
     </div>
