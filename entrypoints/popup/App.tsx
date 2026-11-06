@@ -39,15 +39,6 @@ function App() {
 
   return (
     <main className="flex flex-1 flex-col gap-3">
-      {/* Top Header */}
-      <header className="flex items-center justify-between border-b border-zinc-800 pb-2">
-        <div className="flex items-center gap-2">
-          <h1 className="m-0 bg-linear-to-r from-[#f09433] via-[#dc2743] to-[#bc1888] bg-clip-text text-base font-bold text-transparent">
-            IMBALANCE
-          </h1>
-        </div>
-      </header>
-
       {/* Main Body */}
       {checking ? (
         <article className="p-3.5" aria-busy="true">

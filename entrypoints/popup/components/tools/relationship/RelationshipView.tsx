@@ -2,6 +2,11 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { type RelationshipTab, computeRelationshipSets } from "../../../services";
 import { useRelationshipScan } from "../../../hooks/useRelationshipScan";
 import { UserList } from "./UserList";
+import {
+  Filters,
+  ACCOUNT_FILTERS_DEFAULT,
+  type AccountFilters,
+} from "./Filters";
 
 interface RelationshipViewProps {
   userId: string | null;
@@ -15,7 +20,7 @@ const FOLLOW_TABS: { id: RelationshipTab; label: string }[] = [
 const TOOLS_MENU: { id: RelationshipTab; label: string }[] = [
   { id: "fans", label: "Fans" },
   { id: "mutual", label: "Mutual" },
-  { id: "notFollowingBack", label: "Not Following Back" },
+  { id: "notFollowingBack", label: "Not Following" },
 ];
 
 const TAB_LABELS: Record<RelationshipTab, string> = {
@@ -23,12 +28,13 @@ const TAB_LABELS: Record<RelationshipTab, string> = {
   following: "Following",
   fans: "Fans",
   mutual: "Mutual",
-  notFollowingBack: "Not Following Back",
+  notFollowingBack: "Not Following",
 };
 
 export function RelationshipView({ userId }: RelationshipViewProps) {
   const [activeTab, setActiveTab] = useState<RelationshipTab>("followers");
   const [searchQuery, setSearchQuery] = useState("");
+  const [filters, setFilters] = useState<AccountFilters>(ACCOUNT_FILTERS_DEFAULT);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -79,15 +85,27 @@ export function RelationshipView({ userId }: RelationshipViewProps) {
   }, [progress]);
 
   const filteredUsers = useMemo(() => {
-    const list = relationshipSets[activeTab] || [];
+    let list = relationshipSets[activeTab] || [];
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter(
-      (u) =>
-        u.username.toLowerCase().includes(q) ||
-        (u.fullName && u.fullName.toLowerCase().includes(q)),
-    );
-  }, [relationshipSets, activeTab, searchQuery]);
+    if (q) {
+      list = list.filter(
+        (u) =>
+          u.username.toLowerCase().includes(q) ||
+          (u.fullName && u.fullName.toLowerCase().includes(q)),
+      );
+    }
+    const { verified, public: isPublic, private: isPrivate } = filters;
+    const hasActive = verified || isPublic || isPrivate;
+    if (hasActive) {
+      list = list.filter(
+        (u) =>
+          (verified && u.isVerified === true) ||
+          (isPublic && u.isPrivate !== true) ||
+          (isPrivate && u.isPrivate === true),
+      );
+    }
+    return list;
+  }, [relationshipSets, activeTab, searchQuery, filters]);
 
   const btnBase =
     "inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none";
@@ -178,23 +196,23 @@ export function RelationshipView({ userId }: RelationshipViewProps) {
       <div className="toolbar-row">
         <input
           type="text"
-          className="search-input"
+          className="search-input min-w-0 flex-[7]"
           placeholder={`Search ${TAB_LABELS[activeTab]}...`}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
 
-        <div className="relative">
+        <div className="relative min-w-0 flex-[3]">
           <button
             type="button"
-            className={`${btnPrimary} h-full`}
+            className={`${btnPrimary} h-full w-full`}
             onClick={() => setMenuOpen((o) => !o)}
             aria-haspopup="menu"
             aria-expanded={menuOpen}
           >
-            Tools
+            <span className="min-w-0 flex-1 truncate">{TAB_LABELS[activeTab]}</span>
             <svg
-              className="h-3.5 w-3.5"
+              className="h-3.5 w-3.5 flex-shrink-0"
               aria-hidden="true"
               xmlns="http://www.w3.org/2000/svg"
               width="24"
@@ -249,6 +267,9 @@ export function RelationshipView({ userId }: RelationshipViewProps) {
           )}
         </div>
       </div>
+
+      {/* Account filters */}
+      <Filters value={filters} onChange={setFilters} />
 
       {/* User List */}
       <UserList
