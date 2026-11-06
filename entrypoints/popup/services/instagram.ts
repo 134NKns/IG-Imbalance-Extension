@@ -82,17 +82,23 @@ export async function getDsUserId(): Promise<string | null> {
 }
 
 export async function fetchUserProfile(
-  userId: string
+  userId: string,
 ): Promise<FetchProfileResult> {
   const cacheKey = `ig_profile_${userId}`;
+  // fbcdn avatar URLs carry expiring signed tokens, so never trust stale cache
+  const CACHE_TTL_MS = 5 * 60 * 1000;
   try {
     const cached = (await browser.storage.local.get(cacheKey)) as Record<
       string,
-      UserProfileData | undefined
+      { data?: UserProfileData; ts?: number } | undefined
     >;
-    const profile = cached?.[cacheKey];
-    if (profile && profile.profilePicUrl) {
-      return { success: true, data: profile };
+    const entry = cached?.[cacheKey];
+    if (
+      entry?.data?.profilePicUrl &&
+      entry.ts &&
+      Date.now() - entry.ts < CACHE_TTL_MS
+    ) {
+      return { success: true, data: entry.data };
     }
   } catch {}
 
@@ -113,7 +119,9 @@ export async function fetchUserProfile(
       });
       if (response?.success && response.data) {
         if (response.data.profilePicUrl) {
-          browser.storage.local.set({ [cacheKey]: response.data }).catch(() => {});
+          browser.storage.local
+            .set({ [cacheKey]: { data: response.data, ts: Date.now() } })
+            .catch(() => {});
         }
         return response;
       }
@@ -138,7 +146,7 @@ export async function fetchUserProfile(
       func: async (uid: string) => {
         // Extract from page DOM (100% safe, 0 network calls)
         const profileLink = Array.from(
-          document.querySelectorAll('a[href^="/"]')
+          document.querySelectorAll('a[href^="/"]'),
         ).find((a) => {
           const href = a.getAttribute("href") || "";
           const match = href.match(/^\/([a-zA-Z0-9._]+)\/?$/);
@@ -159,6 +167,18 @@ export async function fetchUserProfile(
 
         let domUsername = "";
         let domPicUrl = "";
+        // 0) Real avatar: alt = "<username>'s profile picture"
+        const avatarImg = Array.from(
+          document.querySelectorAll<HTMLImageElement>(
+            'img[alt*="\'s profile picture" i]',
+          ),
+        ).sort((a, b) => (b.naturalWidth ?? 0) - (a.naturalWidth ?? 0))[0];
+        if (avatarImg) {
+          const alt = avatarImg.getAttribute("alt") || "";
+          const m = alt.match(/^(\S+)'s profile picture/i);
+          if (m?.[1]) domUsername = m[1];
+          domPicUrl = avatarImg.currentSrc || avatarImg.src || "";
+        }
         if (profileLink) {
           const href = profileLink.getAttribute("href") || "";
           const match = href.match(/^\/([a-zA-Z0-9._]+)\/?$/);
@@ -169,7 +189,8 @@ export async function fetchUserProfile(
 
         // Also check header image if on own profile
         if (!domPicUrl) {
-          const headerImg = document.querySelector<HTMLImageElement>("header img");
+          const headerImg =
+            document.querySelector<HTMLImageElement>("header img");
           if (headerImg) {
             domPicUrl = headerImg.currentSrc || headerImg.src || "";
           }
@@ -198,7 +219,9 @@ export async function fetchUserProfile(
     const res = results[0]?.result;
     if (res?.success && res.data) {
       if (res.data.profilePicUrl) {
-        browser.storage.local.set({ [cacheKey]: res.data }).catch(() => {});
+        browser.storage.local
+          .set({ [cacheKey]: { data: res.data, ts: Date.now() } })
+          .catch(() => {});
       }
       return res;
     }
@@ -213,7 +236,7 @@ export async function fetchUserProfile(
 }
 
 export async function testFetchFollowing(
-  userId: string
+  userId: string,
 ): Promise<TestFollowingResult> {
   try {
     const tabs = await browser.tabs.query({
@@ -252,7 +275,7 @@ export async function testFetchFollowing(
       func: async (uid: string) => {
         function getCookie(name: string): string | null {
           const match = document.cookie.match(
-            new RegExp("(^|;\\s*)(" + name + ")=([^;]*)")
+            new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"),
           );
           return match && match[3] ? decodeURIComponent(match[3]) : null;
         }

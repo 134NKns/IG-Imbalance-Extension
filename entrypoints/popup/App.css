@@ -1,169 +1,44 @@
-#root {
-  width: 440px;
-  min-height: 520px;
-  max-height: 600px;
-  margin: 0 auto;
-  padding: 14px;
-  box-sizing: border-box;
-  overflow-y: auto;
+@import "tailwindcss";
+
+@theme {
+  --color-brand: #e1306c;
+  --font-sans:
+    "Inter", system-ui, Avenir, Helvetica, Arial, sans-serif;
 }
 
-.app-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0;
-  padding: 0;
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-neutral-800 font-sans text-zinc-100 antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  #root {
+    width: 440px;
+    min-height: 520px;
+    max-height: 600px;
+    margin: 0 auto;
+    padding: 14px;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
 }
 
-/* Header */
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--pico-muted-border-color, #27272a);
-  margin-bottom: 0;
+.no-scrollbar {
+  scrollbar-width: none;
 }
 
-.app-branding {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
-.app-title {
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin: 0;
-  background: linear-gradient(45deg, #f09433, #dc2743, #bc1888);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* App Content */
-.app-content {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 4px;
-}
-
-/* Generic Cards */
-.app-card {
-  margin: 0;
-  padding: 14px;
-}
-
-.warning-card {
-  text-align: center;
-}
-
-.warning-card h3 {
-  margin-bottom: 8px;
-  color: #fbbf24;
-}
-
-.app-hint {
-  font-size: 0.82rem;
-  margin-bottom: 14px;
-}
-
-.scan-actions[role="group"] {
-  margin-bottom: 0;
-}
-
-.scan-actions button {
-  padding: 6px 14px;
-  font-size: 0.78rem;
-  margin-bottom: 0;
-}
-
-.btn-clear {
-  background: transparent;
-  color: #9ca3af;
-  border: 1px solid #3f3f46;
-}
-
-.btn-clear:hover {
-  background: #27272a;
-  color: #f3f4f6;
-  border-color: #52525b;
-}
-
-/* Profile Card */
-.profile-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background-color: #1a1a1e;
-  border: 1px solid #292930;
-}
-
-.profile-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.profile-avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #e1306c;
-}
-
-.profile-avatar.placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #374151;
-  color: #f3f4f6;
-  font-weight: 700;
-  font-size: 1.1rem;
-}
-
-.profile-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-}
-
-.profile-username-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.profile-username {
-  font-weight: 700;
-  font-size: 0.9rem;
-  color: #ffffff;
-}
-
-.profile-fullname {
-  font-size: 0.75rem;
-  color: #9ca3af;
-}
-
-.profile-counts {
-  display: flex;
-  gap: 10px;
-  font-size: 0.75rem;
-  color: #9ca3af;
-  margin-top: 2px;
-}
-
-.profile-counts strong {
-  color: #ffffff;
-}
-
-/* Relationship Module */
+/* ============================================================
+   Relationship module — ยังไม่ migrate เป็น Tailwind (WIP)
+   ใช้กับ RelationshipView / UserList เท่านั้น
+   ============================================================ */
 .relationship-container {
   display: flex;
   flex-direction: column;

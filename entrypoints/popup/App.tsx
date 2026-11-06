@@ -10,15 +10,7 @@ function App() {
   const [userId, setUserId] = useState<string | null>(null);
   const [checking, setChecking] = useState<boolean>(true);
 
-  const {
-    progress,
-    isScanning,
-    isCompleted,
-    hasData,
-    scanMessage,
-    handleStartScan,
-    handleReset,
-  } = useRelationshipScan(userId);
+  const { progress, scanMessage } = useRelationshipScan(userId);
 
   const checkStatus = useCallback(async () => {
     setChecking(true);
@@ -45,69 +37,48 @@ function App() {
     browser.tabs.create({ url: "https://www.instagram.com/" });
   };
 
+  const primaryBtn =
+    "bg-brand text-white rounded-md px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-brand/90";
+
   return (
-    <main className="app-container">
+    <main className="flex flex-col gap-3">
       {/* Top Header */}
-      <header className="app-header">
-        <div className="app-branding">
-          <h1 className="app-title">IMBALANCE</h1>
+      <header className="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <div className="flex items-center gap-2">
+          <h1 className="m-0 bg-linear-to-r from-[#f09433] via-[#dc2743] to-[#bc1888] bg-clip-text text-base font-bold text-transparent">
+            IMBALANCE
+          </h1>
         </div>
       </header>
 
       {/* Main Body */}
       {checking ? (
-        <article className="app-card status-loading" aria-busy="true">
+        <article className="p-3.5" aria-busy="true">
           Checking connection...
         </article>
       ) : !isInstagram ? (
-        <article className="app-card warning-card">
-          <h3>Not on Instagram</h3>
-          <p className="app-hint">Please open an Instagram tab.</p>
-          <button onClick={handleOpenInstagram}>Open Instagram</button>
+        <article className="p-3.5 text-center">
+          <h3 className="mb-2 text-amber-400">Not on Instagram</h3>
+          <p className="mb-3.5 text-xs text-zinc-400">
+            Please open an Instagram tab.
+          </p>
+          <button className={primaryBtn} onClick={handleOpenInstagram}>
+            Open Instagram
+          </button>
         </article>
       ) : !userId ? (
-        <article className="app-card warning-card">
-          <h3>Not Logged In</h3>
-          <p className="app-hint">
+        <article className="p-3.5 text-center">
+          <h3 className="mb-2 text-amber-400">Not Logged In</h3>
+          <p className="mb-3.5 text-xs text-zinc-400">
             Please log in to your Instagram account on the active tab
           </p>
-          <button onClick={checkStatus}>Refresh</button>
+          <button className={primaryBtn} onClick={checkStatus}>
+            Refresh
+          </button>
         </article>
       ) : (
-        <section className="app-content">
-          <Profile
-            userId={userId}
-            actions={
-              <div className="scan-actions" role="group">
-                <button
-                  className={isScanning ? "contrast" : "primary"}
-                  onClick={() => handleStartScan(false)}
-                >
-                  {isScanning
-                    ? "Pause"
-                    : isCompleted
-                      ? "Rescan"
-                      : hasData
-                        ? "Resume"
-                        : "Scan"}
-                </button>
-                {hasData && !isScanning && (
-                  <button
-                    className="btn-clear"
-                    onClick={handleReset}
-                    title="Clear cached scan data"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-            }
-          />
-          {/* <RelationshipView
-            userId={userId}
-            progress={progress}
-            scanMessage={scanMessage}
-          /> */}
+        <section className="mt-1 flex flex-col gap-3">
+          <Profile userId={userId} />
         </section>
       )}
     </main>
