@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  fetchViewedProfileDom,
-  fetchStory,
-} from "../../services";
+import { fetchStory } from "../../services";
 import type { StoryMediaItem } from "../../services";
 
 interface StoryViewerProps {
@@ -31,30 +28,19 @@ export function StoryViewer({ viewingProfile }: StoryViewerProps) {
   const loadStory = useCallback(async () => {
     if (!viewingProfile) return;
     setState({ status: "loading" });
+    setUsername(null);
+    setPicUrl(null);
     setItems([]);
     setIndex(0);
     setVideoError(false);
     try {
-      // Resolve pk (numeric user id) from the open profile page DOM
-      const dom = await fetchViewedProfileDom();
-      if (dom.success && dom.data) {
-        setUsername(dom.data.username);
-        if (dom.data.profilePicUrl) setPicUrl(dom.data.profilePicUrl);
-      }
-      const pk = dom.success ? dom.data?.userId : null;
-      if (!pk) {
-        setState({
-          status: "error",
-          message:
-            "Could not resolve user id from the profile page. Make sure you are on that user's profile.",
-        });
-        return;
-      }
-      const res = await fetchStory(pk);
+      const res = await fetchStory(viewingProfile);
       if (!res.success || !res.data) {
         setState({ status: "error", message: res.error || "Failed to load story" });
         return;
       }
+      setUsername(res.data.username ?? viewingProfile);
+      if (res.data.profilePicUrl) setPicUrl(res.data.profilePicUrl);
       if (res.data.items.length === 0) {
         setState({
           status: "error",

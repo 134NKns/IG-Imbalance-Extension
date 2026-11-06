@@ -345,7 +345,6 @@ export async function testFetchFollowing(
 export interface ViewedProfileData {
   username: string;
   profilePicUrl?: string;
-  userId?: string;
 }
 
 export interface FetchViewedProfileResult {
@@ -422,7 +421,6 @@ export async function fetchViewedProfileDom(): Promise<FetchViewedProfileResult>
       func: async () => {
         let username = "";
         let profilePicUrl = "";
-        let vUserId: string | null = null;
 
         // Real avatar: alt = "<username>'s profile picture"
         const avatarImg = Array.from(
@@ -446,42 +444,11 @@ export async function fetchViewedProfileDom(): Promise<FetchViewedProfileResult>
           }
         }
 
-        // Resolve numeric user id (pk) from embedded data, no network
-        if (username) {
-          try {
-            const sd = (window as any)._sharedData;
-            const p = sd?.entry_data?.ProfilePage?.[0]?.graphql?.user;
-            if (p?.id && p.username === username) vUserId = String(p.id);
-          } catch {}
-        }
-        if (!vUserId && username) {
-          try {
-            const marker = `"username":"${username}"`;
-            const scripts = Array.from(
-              document.querySelectorAll<HTMLScriptElement>("script"),
-            );
-            for (const s of scripts) {
-              const text = s.textContent || "";
-              if (!text.includes(marker)) continue;
-              const m = text.match(
-                new RegExp(`"id":"(\\d+)"[^}]*"username":"${username}"`),
-              );
-              if (m?.[1]) {
-                vUserId = m[1];
-                break;
-              }
-            }
-          } catch {}
-        }
-
         if (!username && !profilePicUrl) {
           return { success: false, error: "Could not read profile from page." };
         }
 
-        return {
-          success: true,
-          data: { username, profilePicUrl, userId: vUserId ?? undefined },
-        };
+        return { success: true, data: { username, profilePicUrl } };
       },
     });
 
@@ -512,6 +479,8 @@ export interface FetchStoryResult {
   success: boolean;
   data?: {
     userId: string;
+    username?: string;
+    profilePicUrl?: string;
     items: StoryMediaItem[];
   };
   error?: string;
@@ -520,7 +489,7 @@ export interface FetchStoryResult {
 
 /** Fetch a user's active stories via reels_media. Never marks stories as seen. */
 export async function fetchStory(
-  userId: string,
+  username: string,
 ): Promise<FetchStoryResult> {
   try {
     const tabs = await browser.tabs.query({
@@ -535,7 +504,7 @@ export async function fetchStory(
     try {
       const response = await browser.tabs.sendMessage(tabId, {
         type: "FETCH_STORY",
-        userId,
+        username,
       });
       if (response) return response;
     } catch {
@@ -556,7 +525,7 @@ export async function fetchStory(
 
     const results = await scriptingApi.executeScript({
       target: { tabId },
-      func: async (uid: string) => {
+      func: async (uname: string) => {
         function getCookie(name: string): string | null {
           const match = document.cookie.match(
             new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"),
@@ -572,6 +541,26 @@ export async function fetchStory(
           accept: "*/*",
           referer: "https://www.instagram.com/",
         };
+
+        // Resolve username -> numeric user id (pk). Not profile-page tied.
+        let uid = "";
+        try {
+          const r = await fetch(
+            `https://www.instagram.com/api/v1/users/${encodeURIComponent(uname)}/usernameinfo/`,
+            { method: "GET", headers, credentials: "include" },
+          );
+          if (r.ok) {
+            const j = await r.json();
+            uid = String(j?.user?.pk ?? "");
+          }
+        } catch {}
+        if (!uid) {
+          return {
+            success: false,
+            error:
+              "Could not resolve user. Make sure you are on an Instagram tab log in to that account.",
+          };
+        }
 
         try {
           const res = await fetch(
@@ -625,7 +614,7 @@ export async function fetchStory(
                 imageUrl: best?.url,
                 videoUrl: mediaType === "video" ? vids[0]?.url : undefined,
                 takenAt: it.taken_at,
-                username: reel?.user?.username,
+                username: reel?.user?.username || uname,
                 isVerified: reel?.user?.is_verified,
               };
             })
@@ -633,13 +622,18 @@ export async function fetchStory(
 
           return {
             success: true,
-            data: { userId: uid, items: parsed },
+            data: {
+              userId: uid,
+              username: reel?.user?.username || uname,
+              profilePicUrl: reel?.user?.profile_pic_url,
+              items: parsed,
+            },
           };
         } catch (e: any) {
           return { success: false, error: String(e) };
         }
       },
-      args: [userId],
+      args: [username],
     });
 
     return (
