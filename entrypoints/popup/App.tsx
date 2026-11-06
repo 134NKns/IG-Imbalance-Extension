@@ -1,5 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
-import { getCurrentTabUrl, isInstagramUrl, getDsUserId } from "./services";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  getCurrentTabUrl,
+  isInstagramUrl,
+  getDsUserId,
+  parseProfileUsername,
+} from "./services";
 import { Profile, Tools } from "./components";
 import "./App.css";
 
@@ -25,6 +30,11 @@ function App() {
       setChecking(false);
     }
   }, []);
+
+  const viewingProfile = useMemo(
+    () => parseProfileUsername(currentUrl),
+    [currentUrl],
+  );
 
   useEffect(() => {
     checkStatus();
@@ -66,7 +76,7 @@ function App() {
         </article>
       ) : (
         <section className="mt-1 flex flex-1 flex-col gap-3">
-          <Profile userId={userId} />
+          <Profile userId={userId} viewingProfile={viewingProfile} />
           <Tools userId={userId} />
         </section>
       )}

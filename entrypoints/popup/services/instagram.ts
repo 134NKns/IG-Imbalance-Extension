@@ -341,3 +341,124 @@ export async function testFetchFollowing(
     return { success: false, error: String(error) };
   }
 }
+
+export interface ViewedProfileData {
+  username: string;
+  profilePicUrl?: string;
+}
+
+export interface FetchViewedProfileResult {
+  success: boolean;
+  data?: ViewedProfileData;
+  error?: string;
+}
+
+const NON_USER_PATHS = new Set([
+  "explore",
+  "reels",
+  "direct",
+  "stories",
+  "your_activity",
+  "settings",
+  "accounts",
+  "p",
+  "tv",
+  "oembed",
+  "about",
+  "privacy",
+  "help",
+  "legal",
+  "security",
+  "contact",
+  "f",
+  "friendships",
+]);
+
+/** Extract profile username from an Instagram profile URL like /cristiano/ */
+export function parseProfileUsername(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments.length !== 1) return null;
+    const username = segments[0];
+    if (!username) return null;
+    if (!/^[a-zA-Z0-9._]{1,30}$/.test(username)) return null;
+    if (NON_USER_PATHS.has(username.toLowerCase())) return null;
+    return username;
+  } catch {
+    return null;
+  }
+}
+
+/** Pull username + profile pic straight from the open profile page's DOM. */
+export async function fetchViewedProfileDom(): Promise<FetchViewedProfileResult> {
+  try {
+    const tabs = await browser.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    const tabId = tabs[0]?.id;
+    if (!tabId) {
+      return { success: false, error: "No active tab found" };
+    }
+
+    const browserObj =
+      typeof browser !== "undefined" ? (browser as any) : null;
+    const chromeObj =
+      typeof globalThis !== "undefined" ? (globalThis as any).chrome : null;
+    const scriptingApi = browserObj?.scripting || chromeObj?.scripting;
+
+    if (!scriptingApi) {
+      return {
+        success: false,
+        error: "Could not establish connection. Please reload Instagram tab.",
+      };
+    }
+
+    const results = await scriptingApi.executeScript({
+      target: { tabId },
+      func: async () => {
+        let username = "";
+        let profilePicUrl = "";
+
+        // Real avatar: alt = "<username>'s profile picture"
+        const avatarImg = Array.from(
+          document.querySelectorAll<HTMLImageElement>(
+            'img[alt*="\'s profile picture" i]',
+          ),
+        ).sort((a, b) => (b.naturalWidth ?? 0) - (a.naturalWidth ?? 0))[0];
+        if (avatarImg) {
+          const alt = avatarImg.getAttribute("alt") || "";
+          const m = alt.match(/^(\S+)'s profile picture/i);
+          if (m?.[1]) username = m[1];
+          profilePicUrl = avatarImg.currentSrc || avatarImg.src || "";
+        }
+
+        // Fallback: header image
+        if (!profilePicUrl) {
+          const headerImg =
+            document.querySelector<HTMLImageElement>("header img");
+          if (headerImg) {
+            profilePicUrl = headerImg.currentSrc || headerImg.src || "";
+          }
+        }
+
+        if (!username && !profilePicUrl) {
+          return { success: false, error: "Could not read profile from page." };
+        }
+
+        return { success: true, data: { username, profilePicUrl } };
+      },
+    });
+
+    return (
+      results[0]?.result ?? {
+        success: false,
+        error: "Empty execution result",
+      }
+    );
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
