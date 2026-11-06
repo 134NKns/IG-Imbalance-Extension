@@ -18,8 +18,8 @@ computes the sets you actually care about:
 - **Not following back** — the awkward one
 - **Followers / Following** — the raw lists
 
-Then it lets you filter (Verified ✓ / Public / Private), search usernames, and export
-the result as CSV.
+Then it lets you filter (Verified ✓ / Public / Private), search usernames, and jump between
+the sets from a dropdown.
 
 No server, no account, no key. Everything runs in your tab with your session and stays
 in `browser.storage.local`.
@@ -39,13 +39,11 @@ If a scan gets interrupted (you closed the popup mid-scan, Instagram rate-limite
 
 - Scan followers + following sequentially (following first, then followers), resumable,
   with live progress
-- Relationship sets: mutual / fans / not-following-back, with per-set counts
+- Relationship sets: Mutual / Fans / Not Following, with per-set counts
+- Followers / Following count badges, click to switch list
 - Per-account filters (Verified ✓ / Public / Private) and username search, multi-select
-- CSV export with formula-injection escaping (the `=+@` OWASP thing)
-- Profile card: your own stats, plus the profile you are currently viewing
-- "Viewing a profile" badge — when you open someone's profile, the popup tells you
-  whether you follow them, they follow you, or both. This is computed purely against
-  your last scan (zero extra API calls).
+- Account card for the profile you're viewing, with relationship badges
+- Clean reset via **Clear** (wipes scan data for the account from local storage)
 
 ## Install
 
@@ -63,13 +61,15 @@ You must be logged into Instagram in the active tab for anything to work.
 ## Usage
 
 1. Open the popup on any `instagram.com` tab.
-2. **Relation** tab → **Scan**. First run takes a while; the progress bar tells you which
-   list it's on.
-3. Click a result set (Mutual / Fans / Not following back / ...), filter or search it.
-4. Bored? Export CSV.
+2. **Relation** section → **Scan**. First run takes a while; the progress bar tells you
+   which list it's on.
+3. Click **Followers** / **Following** badges, or the dropdown, to switch between sets.
+4. Filter (Verified ✓ / Public / Private) or search by username.
 
-Open someone's profile and the popup card up top shows where they sit relative to your
-last scan. No new request is made for that — it's a lookup in what you already have.
+Open someone's profile and the card up top shows where they sit relative to your last
+scan: **Mutual**, **Not following back**, **Follows you**, **No relationship**, or
+**No scan data**. No new request is made for that — it's a lookup in what you already
+have.
 
 ## Known limits (be honest with yourself)
 
@@ -77,7 +77,7 @@ last scan. No new request is made for that — it's a lookup in what you already
   extension breaks. There is no SLA.
 - The scanner is deliberately slow on purpose. Raising the jitter just means you get a
   429 sooner.
-- Media CDN URLs (avatars, post media) expire. They're fetched on demand, never cached.
+- Avatar and media CDN URLs expire, so they're read fresh each time, never cached.
 - The "viewed profile" badge is only as fresh as your last scan. If you followed
   someone 10 minutes ago and haven't re-scanned, the badge is a lie.
 
@@ -94,7 +94,7 @@ entrypoints/
       tools/             # RelationshipView (scan UI), PostViewer (hidden)
     services/
       instagram.ts       # tab injection, DOM reads, shortcode → media id
-      relationship.ts    # scan state machine, storage, CSV
+      relationship.ts    # scan state machine, storage, set math
     hooks/
       useRelationshipScan.ts
 ```
