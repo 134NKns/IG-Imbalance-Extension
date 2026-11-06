@@ -345,6 +345,7 @@ export async function testFetchFollowing(
 export interface ViewedProfileData {
   username: string;
   profilePicUrl?: string;
+  userId?: string;
 }
 
 export interface FetchViewedProfileResult {
@@ -421,6 +422,7 @@ export async function fetchViewedProfileDom(): Promise<FetchViewedProfileResult>
       func: async () => {
         let username = "";
         let profilePicUrl = "";
+        let vUserId: string | null = null;
 
         // Real avatar: alt = "<username>'s profile picture"
         const avatarImg = Array.from(
@@ -444,12 +446,200 @@ export async function fetchViewedProfileDom(): Promise<FetchViewedProfileResult>
           }
         }
 
+        // Resolve numeric user id (pk) from embedded data, no network
+        if (username) {
+          try {
+            const sd = (window as any)._sharedData;
+            const p = sd?.entry_data?.ProfilePage?.[0]?.graphql?.user;
+            if (p?.id && p.username === username) vUserId = String(p.id);
+          } catch {}
+        }
+        if (!vUserId && username) {
+          try {
+            const marker = `"username":"${username}"`;
+            const scripts = Array.from(
+              document.querySelectorAll<HTMLScriptElement>("script"),
+            );
+            for (const s of scripts) {
+              const text = s.textContent || "";
+              if (!text.includes(marker)) continue;
+              const m = text.match(
+                new RegExp(`"id":"(\\d+)"[^}]*"username":"${username}"`),
+              );
+              if (m?.[1]) {
+                vUserId = m[1];
+                break;
+              }
+            }
+          } catch {}
+        }
+
         if (!username && !profilePicUrl) {
           return { success: false, error: "Could not read profile from page." };
         }
 
-        return { success: true, data: { username, profilePicUrl } };
+        return {
+          success: true,
+          data: { username, profilePicUrl, userId: vUserId ?? undefined },
+        };
       },
+    });
+
+    return (
+      results[0]?.result ?? {
+        success: false,
+        error: "Empty execution result",
+      }
+    );
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+export interface StoryMediaItem {
+  id: string;
+  mediaType: "image" | "video";
+  height?: number;
+  width?: number;
+  imageUrl?: string;
+  videoUrl?: string;
+  takenAt?: number;
+  username?: string;
+  isVerified?: boolean;
+}
+
+export interface FetchStoryResult {
+  success: boolean;
+  data?: {
+    userId: string;
+    items: StoryMediaItem[];
+  };
+  error?: string;
+  status?: number;
+}
+
+/** Fetch a user's active stories via reels_media. Never marks stories as seen. */
+export async function fetchStory(
+  userId: string,
+): Promise<FetchStoryResult> {
+  try {
+    const tabs = await browser.tabs.query({
+      active: true,
+      lastFocusedWindow: true,
+    });
+    const tabId = tabs[0]?.id;
+    if (!tabId) {
+      return { success: false, error: "No active tab found" };
+    }
+
+    try {
+      const response = await browser.tabs.sendMessage(tabId, {
+        type: "FETCH_STORY",
+        userId,
+      });
+      if (response) return response;
+    } catch {
+      // Content script message failed; fallback to scripting API
+    }
+
+    const browserObj = typeof browser !== "undefined" ? (browser as any) : null;
+    const chromeObj =
+      typeof globalThis !== "undefined" ? (globalThis as any).chrome : null;
+    const scriptingApi = browserObj?.scripting || chromeObj?.scripting;
+
+    if (!scriptingApi) {
+      return {
+        success: false,
+        error: "Could not establish connection. Please reload Instagram tab.",
+      };
+    }
+
+    const results = await scriptingApi.executeScript({
+      target: { tabId },
+      func: async (uid: string) => {
+        function getCookie(name: string): string | null {
+          const match = document.cookie.match(
+            new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"),
+          );
+          return match && match[3] ? decodeURIComponent(match[3]) : null;
+        }
+
+        const headers: Record<string, string> = {
+          "x-ig-app-id": "936619743392459",
+          "x-csrftoken": getCookie("csrftoken") || "",
+          "x-asbd-id": "359341",
+          "x-requested-with": "XMLHttpRequest",
+          accept: "*/*",
+          referer: "https://www.instagram.com/",
+        };
+
+        try {
+          const res = await fetch(
+            `https://www.instagram.com/api/v1/feed/reels_media/?reel_ids=${encodeURIComponent(uid)}`,
+            {
+            method: "GET",
+            headers,
+            credentials: "include",
+          });
+
+          if (res.status === 429) {
+            return {
+              success: false,
+              status: 429,
+              error: "Rate limited by Instagram (429)",
+            };
+          }
+          if (res.status === 401) {
+            return { success: false, status: 401, error: "Login required" };
+          }
+
+          const json = await res.json();
+          if (!res.ok || json.status === "fail") {
+            return {
+              success: false,
+              status: res.status,
+              error: json.message || `Failed (${res.status})`,
+            };
+          }
+
+          const reel = json?.reels?.[uid];
+          const items: any[] = reel?.items ?? [];
+
+          const parsed = items
+            .map((it: any): StoryMediaItem | null => {
+              if (!it?.id) return null;
+              const mediaType: "image" | "video" =
+                it.media_type === 2 ? "video" : "image";
+              const cands = ((it.image_versions2?.candidates ?? []) as any[])
+                .filter((c) => c?.url)
+                .sort((a, b) => b.width - a.width);
+              const vids = ((it.video_versions ?? []) as any[])
+                .filter((v) => v?.url)
+                .sort((a, b) => b.height - a.height);
+              const best = cands[0];
+              return {
+                id: String(it.id ?? it.pk),
+                mediaType,
+                height: it.original_height ?? it.media_height,
+                width: it.original_width ?? it.media_width,
+                imageUrl: best?.url,
+                videoUrl: mediaType === "video" ? vids[0]?.url : undefined,
+                takenAt: it.taken_at,
+                username: reel?.user?.username,
+                isVerified: reel?.user?.is_verified,
+              };
+            })
+            .filter((x): x is StoryMediaItem => Boolean(x));
+
+          return {
+            success: true,
+            data: { userId: uid, items: parsed },
+          };
+        } catch (e: any) {
+          return { success: false, error: String(e) };
+        }
+      },
+      args: [userId],
     });
 
     return (

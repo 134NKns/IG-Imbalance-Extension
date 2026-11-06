@@ -77,7 +77,7 @@ function App() {
       ) : (
         <section className="mt-1 flex flex-1 flex-col gap-3">
           <Profile userId={userId} viewingProfile={viewingProfile} />
-          <Tools userId={userId} />
+          <Tools userId={userId} viewingProfile={viewingProfile} />
         </section>
       )}
     </main>

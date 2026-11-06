@@ -4,6 +4,7 @@ import { StoryViewer } from "./StoryViewer";
 
 interface ToolsProps {
   userId: string | null;
+  viewingProfile?: string | null;
 }
 
 const TOOLS = [
@@ -12,7 +13,7 @@ const TOOLS = [
 ] as const;
 type ToolId = (typeof TOOLS)[number]["id"];
 
-export function Tools({ userId }: ToolsProps) {
+export function Tools({ userId, viewingProfile }: ToolsProps) {
   const [activeTool, setActiveTool] = useState<ToolId>("relation");
 
   const tabBase =
@@ -50,7 +51,7 @@ export function Tools({ userId }: ToolsProps) {
         {activeTool === "relation" ? (
           <RelationshipView userId={userId} />
         ) : (
-          <StoryViewer />
+          <StoryViewer viewingProfile={viewingProfile} />
         )}
       </div>
     </section>
