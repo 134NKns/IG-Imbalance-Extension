@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentTabUrl, isInstagramUrl, getDsUserId } from "./services";
 import { Profile, Tools } from "./components";
-import { useRelationshipScan } from "./hooks/useRelationshipScan";
 import "./App.css";
 
 function App() {
@@ -9,8 +8,6 @@ function App() {
   const [isInstagram, setIsInstagram] = useState<boolean>(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [checking, setChecking] = useState<boolean>(true);
-
-  const { progress, scanMessage } = useRelationshipScan(userId);
 
   const checkStatus = useCallback(async () => {
     setChecking(true);
@@ -79,11 +76,7 @@ function App() {
       ) : (
         <section className="mt-1 flex flex-1 flex-col gap-3">
           <Profile userId={userId} />
-          <Tools
-            userId={userId}
-            progress={progress}
-            scanMessage={scanMessage}
-          />
+          <Tools userId={userId} />
         </section>
       )}
     </main>

@@ -1,10 +1,9 @@
 import { useState } from "react";
-import type { ScanProgress } from "../../services";
+import { RelationshipView } from "./relationship";
+import { StoryViewer } from "./StoryViewer";
 
 interface ToolsProps {
   userId: string | null;
-  progress: ScanProgress | null;
-  scanMessage?: string;
 }
 
 const TOOLS = [
@@ -13,7 +12,7 @@ const TOOLS = [
 ] as const;
 type ToolId = (typeof TOOLS)[number]["id"];
 
-export function Tools({ userId, progress, scanMessage }: ToolsProps) {
+export function Tools({ userId }: ToolsProps) {
   const [activeTool, setActiveTool] = useState<ToolId>("relation");
 
   const tabBase =
@@ -46,8 +45,14 @@ export function Tools({ userId, progress, scanMessage }: ToolsProps) {
         </ul>
       </nav>
 
-      {/* Tool content — ยัง blank ไว้ก่อน (ทั้ง Relation + Story Viewer) */}
-      <div className="flex flex-1 flex-col gap-3 p-2.5" />
+      {/* Tool content */}
+      <div className="flex flex-1 flex-col overflow-hidden p-2.5">
+        {activeTool === "relation" ? (
+          <RelationshipView userId={userId} />
+        ) : (
+          <StoryViewer />
+        )}
+      </div>
     </section>
   );
 }

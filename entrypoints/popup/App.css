@@ -54,96 +54,30 @@
   font-size: 0.85rem;
 }
 
-.scan-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.scan-btn {
-  padding: 6px 14px;
-}
-
-.pause-btn {
-  background: #eab308;
-  color: #000;
-}
-
-.reset-btn {
-  background: #27272a;
-  color: #9ca3af;
-  padding: 6px 10px;
-}
-
-.reset-btn:hover {
-  background: #3f3f46;
-  color: #ffffff;
-}
-
-.scan-status-banner {
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
-  background: #1e293b;
-  color: #60a5fa;
-  border-left: 3px solid #3b82f6;
-}
-
-.scan-status-banner.error {
-  background: #451a1a;
-  color: #fca5a5;
-  border-left-color: #ef4444;
-}
-
-/* Tabs */
-.tabs-container {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-}
-
-.tabs-container::-webkit-scrollbar {
-  display: none;
-}
-
-.tab-btn {
-  flex-shrink: 0;
-  display: flex;
+.scan-count-badge {
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
   background: #1f1f23;
   color: #9ca3af;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
   font-weight: 500;
-  border: 1px solid transparent;
+  border: 1px solid #2e2e34;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
-.tab-btn:hover {
+.scan-count-badge:hover {
   background: #27272c;
   color: #f3f4f6;
 }
 
-.tab-btn.active {
-  background: #2e2e34;
+.scan-count-badge.active {
   color: #ffffff;
   border-color: #e1306c;
-}
-
-.tab-badge {
-  background: #374151;
-  color: #d1d5db;
-  font-size: 0.7rem;
-  padding: 1px 5px;
-  border-radius: 9999px;
-  font-weight: 600;
-}
-
-.tab-btn.active .tab-badge {
-  background: #e1306c;
-  color: #ffffff;
 }
 
 /* Toolbar */
@@ -169,22 +103,6 @@
 
 .search-input::placeholder {
   color: #6b7280;
-}
-
-.export-btn {
-  background: #27272a;
-  color: #e5e7eb;
-  padding: 6px 10px;
-  font-size: 0.75rem;
-}
-
-.export-btn:hover:not(:disabled) {
-  background: #3f3f46;
-}
-
-.export-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 /* User List */
