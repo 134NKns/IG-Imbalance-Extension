@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { IgFriendUser } from "../../services";
+import type { IgFriendUser } from "../../../services";
 
 interface UserAvatarProps {
   url?: string;

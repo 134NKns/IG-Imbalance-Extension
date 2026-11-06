@@ -4,7 +4,7 @@ import {
   type RelationshipTab,
   computeRelationshipSets,
   exportUsersToCsv,
-} from "../../services";
+} from "../../../services";
 import { UserList } from "./UserList";
 
 interface RelationshipViewProps {

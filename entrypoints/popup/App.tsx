@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentTabUrl, isInstagramUrl, getDsUserId } from "./services";
-import { Profile, RelationshipView } from "./components";
+import { Profile, Tools } from "./components";
 import { useRelationshipScan } from "./hooks/useRelationshipScan";
 import "./App.css";
 
@@ -41,7 +41,7 @@ function App() {
     "bg-brand text-white rounded-md px-3.5 py-1.5 text-xs font-medium transition-colors hover:bg-brand/90";
 
   return (
-    <main className="flex flex-col gap-3">
+    <main className="flex flex-1 flex-col gap-3">
       {/* Top Header */}
       <header className="flex items-center justify-between border-b border-zinc-800 pb-2">
         <div className="flex items-center gap-2">
@@ -77,8 +77,13 @@ function App() {
           </button>
         </article>
       ) : (
-        <section className="mt-1 flex flex-col gap-3">
+        <section className="mt-1 flex flex-1 flex-col gap-3">
           <Profile userId={userId} />
+          <Tools
+            userId={userId}
+            progress={progress}
+            scanMessage={scanMessage}
+          />
         </section>
       )}
     </main>
