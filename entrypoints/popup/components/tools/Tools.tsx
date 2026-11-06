@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { RelationshipView } from "./relationship";
-import { StoryViewer } from "./StoryViewer";
+import { PostViewer } from "./PostViewer";
 
 interface ToolsProps {
   userId: string | null;
-  viewingProfile?: string | null;
+  postShortcode?: string | null;
 }
 
 const TOOLS = [
   { id: "relation", label: "Relation" },
-  { id: "story", label: "Story Viewer" },
+  { id: "post", label: "Post Download" },
 ] as const;
 type ToolId = (typeof TOOLS)[number]["id"];
 
-export function Tools({ userId, viewingProfile }: ToolsProps) {
+export function Tools({ userId, postShortcode }: ToolsProps) {
   const [activeTool, setActiveTool] = useState<ToolId>("relation");
 
   const tabBase =
@@ -51,7 +51,7 @@ export function Tools({ userId, viewingProfile }: ToolsProps) {
         {activeTool === "relation" ? (
           <RelationshipView userId={userId} />
         ) : (
-          <StoryViewer viewingProfile={viewingProfile} />
+          <PostViewer postShortcode={postShortcode} />
         )}
       </div>
     </section>

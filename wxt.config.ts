@@ -16,6 +16,7 @@ export default defineConfig({
       "cookies",
       "scripting",
       "storage",
+      "downloads",
       "declarativeNetRequest",
       "declarativeNetRequestWithHostAccess",
     ],

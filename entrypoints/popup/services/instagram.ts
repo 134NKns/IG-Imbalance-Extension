@@ -463,34 +463,76 @@ export async function fetchViewedProfileDom(): Promise<FetchViewedProfileResult>
   }
 }
 
-export interface StoryMediaItem {
+export interface PostMediaItem {
   id: string;
   mediaType: "image" | "video";
-  height?: number;
-  width?: number;
   imageUrl?: string;
   videoUrl?: string;
-  takenAt?: number;
+  height?: number;
+  width?: number;
   username?: string;
-  isVerified?: boolean;
 }
 
-export interface FetchStoryResult {
+export interface FetchPostResult {
   success: boolean;
   data?: {
-    userId: string;
+    shortcode: string;
     username?: string;
-    profilePicUrl?: string;
-    items: StoryMediaItem[];
+    items: PostMediaItem[];
   };
   error?: string;
   status?: number;
 }
 
-/** Fetch a user's active stories via reels_media. Never marks stories as seen. */
-export async function fetchStory(
-  username: string,
-): Promise<FetchStoryResult> {
+const SHORTCODE_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+
+/** Instagram post shortcode -> numeric media id (no network needed). */
+export function shortcodeToMediaId(shortcode: string): string | null {
+  if (!/^[A-Za-z0-9_-]{5,}$/.test(shortcode)) return null;
+  let id = 0n;
+  const chars = shortcode.split("").reverse();
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i] ?? "";
+    const val = BigInt(SHORTCODE_ALPHABET.indexOf(ch));
+    if (val < 0n) return null;
+    id += val * 64n ** BigInt(i);
+  }
+  return id.toString();
+}
+
+const POST_PATH_RE =
+  /\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/;
+
+/** Extract a post shortcode from a URL like /p/DfM7l7EpiMk/ or /reel/.../ */
+export function parsePostShortcode(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    if (
+      !(
+        parsed.hostname === "instagram.com" ||
+        parsed.hostname.endsWith(".instagram.com")
+      )
+    ) {
+      return null;
+    }
+    const m = parsed.pathname.match(POST_PATH_RE);
+    return m?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Fetch a single post's media via media info API (session required). */
+export async function fetchPost(
+  shortcode: string,
+): Promise<FetchPostResult> {
+  const mediaId = shortcodeToMediaId(shortcode);
+  if (!mediaId) {
+    return { success: false, error: "Invalid post shortcode" };
+  }
+
   try {
     const tabs = await browser.tabs.query({
       active: true,
@@ -503,8 +545,8 @@ export async function fetchStory(
 
     try {
       const response = await browser.tabs.sendMessage(tabId, {
-        type: "FETCH_STORY",
-        username,
+        type: "FETCH_POST",
+        mediaId,
       });
       if (response) return response;
     } catch {
@@ -525,7 +567,7 @@ export async function fetchStory(
 
     const results = await scriptingApi.executeScript({
       target: { tabId },
-      func: async (uname: string) => {
+      func: async (mid: string) => {
         function getCookie(name: string): string | null {
           const match = document.cookie.match(
             new RegExp("(^|;\\s*)(" + name + ")=([^;]*)"),
@@ -542,34 +584,41 @@ export async function fetchStory(
           referer: "https://www.instagram.com/",
         };
 
-        // Resolve username -> numeric user id (pk). Not profile-page tied.
-        let uid = "";
-        try {
-          const r = await fetch(
-            `https://www.instagram.com/api/v1/users/${encodeURIComponent(uname)}/usernameinfo/`,
-            { method: "GET", headers, credentials: "include" },
-          );
-          if (r.ok) {
-            const j = await r.json();
-            uid = String(j?.user?.pk ?? "");
-          }
-        } catch {}
-        if (!uid) {
+        function best(
+          cands: Array<{ url?: string; width?: number; height?: number }> | null | undefined,
+        ) {
+          const list = (cands ?? []).filter((c) => c?.url);
+          if (!list.length) return undefined;
+          list.sort((a, b) => (b.width ?? 0) - (a.width ?? 0));
+          return list[0];
+        }
+
+        function parseItem(it: any): PostMediaItem | null {
+          if (!it?.id) return null;
+          const mediaType: "image" | "video" =
+            it.media_type === 2 ? "video" : "image";
+          const img = best(it.image_versions2?.candidates);
+          const vid = mediaType === "video" ? best(it.video_versions) : undefined;
           return {
-            success: false,
-            error:
-              "Could not resolve user. Make sure you are on an Instagram tab log in to that account.",
+            id: String(it.id ?? it.pk),
+            mediaType,
+            imageUrl: img?.url,
+            videoUrl: vid?.url,
+            height: it.original_height ?? it.media_height ?? img?.height,
+            width: it.original_width ?? it.media_width ?? img?.width,
+            username: it.user?.username,
           };
         }
 
         try {
           const res = await fetch(
-            `https://www.instagram.com/api/v1/feed/reels_media/?reel_ids=${encodeURIComponent(uid)}`,
+            `https://www.instagram.com/api/v1/media/${encodeURIComponent(mid)}/info/`,
             {
-            method: "GET",
-            headers,
-            credentials: "include",
-          });
+              method: "GET",
+              headers,
+              credentials: "include",
+            },
+          );
 
           if (res.status === 429) {
             return {
@@ -591,49 +640,35 @@ export async function fetchStory(
             };
           }
 
-          const reel = json?.reels?.[uid];
-          const items: any[] = reel?.items ?? [];
+          const post = json?.items?.[0];
+          if (!post) {
+            return { success: false, error: "Post not found" };
+          }
 
-          const parsed = items
-            .map((it: any): StoryMediaItem | null => {
-              if (!it?.id) return null;
-              const mediaType: "image" | "video" =
-                it.media_type === 2 ? "video" : "image";
-              const cands = ((it.image_versions2?.candidates ?? []) as any[])
-                .filter((c) => c?.url)
-                .sort((a, b) => b.width - a.width);
-              const vids = ((it.video_versions ?? []) as any[])
-                .filter((v) => v?.url)
-                .sort((a, b) => b.height - a.height);
-              const best = cands[0];
-              return {
-                id: String(it.id ?? it.pk),
-                mediaType,
-                height: it.original_height ?? it.media_height,
-                width: it.original_width ?? it.media_width,
-                imageUrl: best?.url,
-                videoUrl: mediaType === "video" ? vids[0]?.url : undefined,
-                takenAt: it.taken_at,
-                username: reel?.user?.username || uname,
-                isVerified: reel?.user?.is_verified,
-              };
-            })
-            .filter((x): x is StoryMediaItem => Boolean(x));
+          const items: PostMediaItem[] = [];
+          if (post.media_type === 8 && Array.isArray(post.carousel_media)) {
+            for (const cm of post.carousel_media) {
+              const parsed = parseItem(cm);
+              if (parsed) items.push(parsed);
+            }
+          } else {
+            const parsed = parseItem(post);
+            if (parsed) items.push(parsed);
+          }
 
           return {
             success: true,
             data: {
-              userId: uid,
-              username: reel?.user?.username || uname,
-              profilePicUrl: reel?.user?.profile_pic_url,
-              items: parsed,
+              shortcode: String(post.code ?? mid),
+              username: post.user?.username,
+              items,
             },
           };
         } catch (e: any) {
           return { success: false, error: String(e) };
         }
       },
-      args: [username],
+      args: [mediaId],
     });
 
     return (
@@ -642,6 +677,30 @@ export async function fetchStory(
         error: "Empty execution result",
       }
     );
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+/** Download a media URL to the browser's download folder. */
+export async function downloadMedia(
+  url: string,
+  filename: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const browserObj = typeof browser !== "undefined" ? (browser as any) : null;
+    const chromeObj =
+      typeof globalThis !== "undefined" ? (globalThis as any).chrome : null;
+    const downloadsApi = browserObj?.downloads || chromeObj?.downloads;
+    if (!downloadsApi?.download) {
+      return { success: false, error: "Downloads API not available" };
+    }
+    await downloadsApi.download({
+      url,
+      filename,
+      conflictAction: "uniquify",
+    });
+    return { success: true };
   } catch (error) {
     return { success: false, error: String(error) };
   }

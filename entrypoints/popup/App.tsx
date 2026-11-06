@@ -4,6 +4,7 @@ import {
   isInstagramUrl,
   getDsUserId,
   parseProfileUsername,
+  parsePostShortcode,
 } from "./services";
 import { Profile, Tools } from "./components";
 import "./App.css";
@@ -33,6 +34,11 @@ function App() {
 
   const viewingProfile = useMemo(
     () => parseProfileUsername(currentUrl),
+    [currentUrl],
+  );
+
+  const postShortcode = useMemo(
+    () => parsePostShortcode(currentUrl),
     [currentUrl],
   );
 
@@ -77,7 +83,7 @@ function App() {
       ) : (
         <section className="mt-1 flex flex-1 flex-col gap-3">
           <Profile userId={userId} viewingProfile={viewingProfile} />
-          <Tools userId={userId} viewingProfile={viewingProfile} />
+          <Tools userId={userId} postShortcode={postShortcode} />
         </section>
       )}
     </main>
